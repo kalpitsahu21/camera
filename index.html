@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Camera Art Filters</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1e293b, #020617 55%);
+      color: #e5e7eb;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .app {
+      width: 100%;
+      max-width: 900px;
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 20px;
+      padding: 18px 16px 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(14px);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .header h1 {
+      margin: 0 0 6px;
+      font-size: 1.6rem;
+    }
+    .header p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #9ca3af;
+    }
+
+    .preview-wrapper {
+      position: relative;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid #1f2937;
+      background: #020617;
+      margin-bottom: 14px;
+    }
+    canvas {
+      width: 100%;
+      display: block;
+    }
+    video {
+      display: none; /* hidden, only used as source */
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1.2fr 1.8fr auto;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 768px) {
+      .controls {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .section {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 14px;
+      padding: 10px 12px;
+      border: 1px solid #1f2937;
+    }
+
+    .section h3 {
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+      color: #e5e7eb;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 9px 18px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+      box-shadow: 0 12px 25px rgba(37, 99, 235, 0.6);
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 16px 32px rgba(37, 99, 235, 0.7);
+    }
+
+    .btn-ghost {
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #374151;
+      box-shadow: 0 0 0 rgba(0, 0, 0, 0.3);
+    }
+    .btn-ghost:hover {
+      background: #111827;
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.9);
+    }
+
+    .btn-mode {
+      width: 100%;
+      font-size: 0.85rem;
+      padding: 8px 10px;
+      justify-content: center;
+    }
+    .btn-mode.active {
+      background: #7c3aed;
+      border-color: #a855f7;
+      box-shadow: 0 10px 26px rgba(124, 58, 237, 0.7);
+    }
+
+    .slider-group {
+      margin-bottom: 8px;
+    }
+    .slider-group:last-child {
+      margin-bottom: 0;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #9ca3af;
+      margin-bottom: 2px;
+    }
+    input[type="range"] {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 999px;
+      background: #1f2937;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #f97316;
+      border: 2px solid #111827;
+      box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.35);
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #f97316;
+      border: 2px solid #111827;
+      box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.35);
+      cursor: pointer;
+    }
+
+    .status {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #facc15;
+      min-height: 1.1em;
+    }
+
+    .save-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .small-hint {
+      font-size: 0.75rem;
+      color: #6b7280;
+      line-height: 1.3;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>Live Camera Art Filters</h1>
+      <p>Start your camera → choose Sketch / Cartoon / Charcoal → adjust sliders → save your drawing.</p>
+    </div>
+
+    <!-- Hidden source video -->
+    <video id="video" autoplay playsinline></video>
+
+    <!-- Visible canvas output -->
+    <div class="preview-wrapper">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="controls">
+      <!-- Camera + mode section -->
+      <div class="section">
+        <h3>Camera & Modes</h3>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+          <button id="startBtn" class="btn btn-primary">🎥 Start Camera</button>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;">
+          <button class="btn btn-ghost btn-mode active" data-mode="sketch">✏️ Sketch</button>
+          <button class="btn btn-ghost btn-mode" data-mode="cartoon">🎭 Cartoon</button>
+          <button class="btn btn-ghost btn-mode" data-mode="charcoal">🪵 Charcoal</button>
+        </div>
+      </div>
+
+      <!-- Sliders section -->
+      <div class="section">
+        <h3>Adjust Look</h3>
+        <div class="slider-group">
+          <div class="slider-label">
+            <span>Edge / Detail Strength</span>
+            <span id="strengthVal">1.5</span>
+          </div>
+          <input
+            id="strengthSlider"
+            type="range"
+            min="0.5"
+            max="4"
+            step="0.1"
+            value="1.5"
+          />
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-label">
+            <span>Blend: Original ↔ Effect</span>
+            <span id="blendVal">0.9</span>
+          </div>
+          <input
+            id="blendSlider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value="0.9"
+          />
+        </div>
+      </div>
+
+      <!-- Save / info section -->
+      <div class="section save-wrapper">
+        <div>
+          <h3>Save Drawing</h3>
+          <button id="saveBtn" class="btn btn-ghost" style="width:100%; margin-top:4px;">
+            💾 Save Current Frame
+          </button>
+        </div>
+        <p class="small-hint">
+          Tip: Tune the sliders until you like the look, then hit “Save Current Frame”.
+          Works best with good lighting and your face centered.
+        </p>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const startBtn = document.getElementById("startBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const statusEl = document.getElementById("status");
+
+    const strengthSlider = document.getElementById("strengthSlider");
+    const strengthVal = document.getElementById("strengthVal");
+
+    const blendSlider = document.getElementById("blendSlider");
+    const blendVal = document.getElementById("blendVal");
+
+    const modeButtons = document.querySelectorAll(".btn-mode");
+
+    let stream = null;
+    let running = false;
+    let currentMode = "sketch";
+
+    // Update slider labels
+    strengthSlider.addEventListener("input", () => {
+      strengthVal.textContent = strengthSlider.value;
+    });
+    blendSlider.addEventListener("input", () => {
+      blendVal.textContent = blendSlider.value;
+    });
+
+    // Mode switching
+    modeButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        modeButtons.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentMode = btn.getAttribute("data-mode");
+        statusEl.textContent = `Mode: ${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}`;
+      });
+    });
+
+    // Start camera
+    startBtn.addEventListener("click", async () => {
+      try {
+        statusEl.textContent = "Requesting camera access...";
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
+
+        video.addEventListener("loadedmetadata", () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          running = true;
+          statusEl.textContent = "Camera started. Filters are live.";
+          drawLoop();
+        }, { once: true });
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Could not access camera. Use HTTPS or localhost and allow permissions.";
+      }
+    });
+
+    // Save current frame as image
+    saveBtn.addEventListener("click", () => {
+      if (!canvas.width || !canvas.height) {
+        statusEl.textContent = "Nothing to save yet. Start the camera first.";
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = "camera-drawing.png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      statusEl.textContent = "Image saved (downloaded as camera-drawing.png).";
+    });
+
+    // Main rendering loop
+    function drawLoop() {
+      if (!running) return;
+
+      // Draw live video to canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Grab pixels
+      let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      const strength = parseFloat(strengthSlider.value);
+      const blend = parseFloat(blendSlider.value);
+
+      // Apply selected filter
+      let filtered;
+      if (currentMode === "sketch") {
+        filtered = toSketch(frame, strength);
+      } else if (currentMode === "cartoon") {
+        filtered = toCartoon(frame, strength);
+      } else {
+        filtered = toCharcoal(frame, strength);
+      }
+
+      // Blend between original and effect
+      const blended = blendImages(frame, filtered, blend);
+
+      // Draw final output
+      ctx.putImageData(blended, 0, 0);
+
+      requestAnimationFrame(drawLoop);
+    }
+
+    // Blend original and effect by factor t (0 = original, 1 = fully effect)
+    function blendImages(original, effect, t) {
+      const src = original.data;
+      const dst = effect.data;
+      const out = new Uint8ClampedArray(src.length);
+      const it = 1 - t;
+
+      for (let i = 0; i < src.length; i += 4) {
+        out[i]     = src[i] * it + dst[i] * t;
+        out[i + 1] = src[i + 1] * it + dst[i + 1] * t;
+        out[i + 2] = src[i + 2] * it + dst[i + 2] * t;
+        out[i + 3] = 255;
+      }
+
+      return new ImageData(out, original.width, original.height);
+    }
+
+    // =============== FILTERS ===============
+
+    // Pencil sketch using Sobel edges (grayscale)
+    function toSketch(imageData, strength = 1.5) {
+      const { width, height, data } = imageData;
+      const numPixels = width * height;
+
+      const gray = new Uint8ClampedArray(numPixels);
+
+      // Grayscale
+      for (let i = 0; i < numPixels; i++) {
+        const r = data[i * 4];
+        const g = data[i * 4 + 1];
+        const b = data[i * 4 + 2];
+        gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+      }
+
+      const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+      const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+      const out = new Uint8ClampedArray(numPixels * 4);
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          let gx = 0, gy = 0, k = 0;
+
+          for (let ky = -1; ky <= 1; ky++) {
+            for (let kx = -1; kx <= 1; kx++) {
+              const px = x + kx;
+              const py = y + ky;
+              const idx = py * width + px;
+              const val = gray[idx];
+
+              gx += sobelX[k] * val;
+              gy += sobelY[k] * val;
+              k++;
+            }
+          }
+
+          const mag = Math.sqrt(gx * gx + gy * gy);
+          const edge = 255 - Math.min(255, mag * strength * 1.1); // inverted for pencil lines
+
+          const di = (y * width + x) * 4;
+          out[di] = out[di + 1] = out[di + 2] = edge;
+          out[di + 3] = 255;
+        }
+      }
+
+      return new ImageData(out, width, height);
+    }
+
+    // Cartoon effect: posterize colors + black edges
+    function toCartoon(imageData, strength = 1.5) {
+      const { width, height, data } = imageData;
+      const numPixels = width * height;
+
+      const gray = new Uint8ClampedArray(numPixels);
+
+      // Grayscale for edges
+      for (let i = 0; i < numPixels; i++) {
+        const r = data[i * 4];
+        const g = data[i * 4 + 1];
+        const b = data[i * 4 + 2];
+        gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+      }
+
+      const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+      const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+      const edges = new Float32Array(numPixels);
+
+      // Edge magnitude
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          let gx = 0, gy = 0, k = 0;
+          for (let ky = -1; ky <= 1; ky++) {
+            for (let kx = -1; kx <= 1; kx++) {
+              const px = x + kx;
+              const py = y + ky;
+              const idx = py * width + px;
+              const val = gray[idx];
+              gx += sobelX[k] * val;
+              gy += sobelY[k] * val;
+              k++;
+            }
+          }
+          const mag = Math.sqrt(gx * gx + gy * gy);
+          edges[y * width + x] = mag;
+        }
+      }
+
+      const out = new Uint8ClampedArray(numPixels * 4);
+      const levels = 6; // color quantization levels
+      const step = 255 / (levels - 1);
+      const edgeThreshold = 80; // base threshold
+
+      function quantize(v) {
+        return Math.round(v / step) * step;
+      }
+
+      for (let i = 0; i < numPixels; i++) {
+        const idx4 = i * 4;
+        const r = data[idx4];
+        const g = data[idx4 + 1];
+        const b = data[idx4 + 2];
+
+        let qr = quantize(r);
+        let qg = quantize(g);
+        let qb = quantize(b);
+
+        // mild smoothing look
+        qr = Math.min(255, qr + 4);
+        qg = Math.min(255, qg + 4);
+        qb = Math.min(255, qb + 4);
+
+        const e = edges[i] * strength;
+
+        if (e > edgeThreshold) {
+          // strong black outline
+          out[idx4] = out[idx4 + 1] = out[idx4 + 2] = 0;
+        } else {
+          out[idx4] = qr;
+          out[idx4 + 1] = qg;
+          out[idx4 + 2] = qb;
+        }
+        out[idx4 + 3] = 255;
+      }
+
+      return new ImageData(out, width, height);
+    }
+
+    // Charcoal effect: harsh edges + noise on grayscale
+    function toCharcoal(imageData, strength = 1.5) {
+      const { width, height, data } = imageData;
+      const numPixels = width * height;
+
+      const gray = new Float32Array(numPixels);
+
+      for (let i = 0; i < numPixels; i++) {
+        const r = data[i * 4];
+        const g = data[i * 4 + 1];
+        const b = data[i * 4 + 2];
+        gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+      }
+
+      const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+      const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+      const out = new Uint8ClampedArray(numPixels * 4);
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          let gx = 0, gy = 0, k = 0;
+          for (let ky = -1; ky <= 1; ky++) {
+            for (let kx = -1; kx <= 1; kx++) {
+              const px = x + kx;
+              const py = y + ky;
+              const idx = py * width + px;
+              const val = gray[idx];
+              gx += sobelX[k] * val;
+              gy += sobelY[k] * val;
+              k++;
+            }
+          }
+          const mag = Math.sqrt(gx * gx + gy * gy) * strength * 1.4;
+          let v = 255 - Math.min(255, mag); // dark strokes
+
+          // push towards darker charcoal look
+          v = v * 0.8;
+
+          // add subtle noise
+          const noise = (Math.random() - 0.5) * 40;
+          v = Math.max(0, Math.min(255, v + noise));
+
+          const di = (y * width + x) * 4;
+          out[di] = out[di + 1] = out[di + 2] = v;
+          out[di + 3] = 255;
+        }
+      }
+
+      return new ImageData(out, width, height);
+    }
+  </script>
+</body>
+</html>
